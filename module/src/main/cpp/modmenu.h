@@ -190,7 +190,7 @@ void* hack_thread(void *) {
 
     InitIL2CPP();
 
-    LOGI(OBFUSCATE("Done"));
+    LOGI("Done"));
     return nullptr;
 }
 
