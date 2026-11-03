@@ -20,7 +20,6 @@ target_include_directories(zygiskmodmenu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/ImGui
     ${CMAKE_CURRENT_SOURCE_DIR}/ImGui/backends
 )
-
 target_link_libraries(zygiskmodmenu
     log
     android
