@@ -33,7 +33,6 @@ public:
         if (!args || !args->nice_name) {
             return;
         }
-        // isGame ফাংশনটি modmenu.h থেকে আসছে
         enable_hack = isGame(env_, args->app_data_dir);
     }
 
@@ -42,7 +41,7 @@ public:
             int ret;
             pthread_t ntid;
             if ((ret = pthread_create(&ntid, nullptr, hack_thread, nullptr))) {
-                LOGE("%s", "can't create thread");
+                LOGE("can't create thread");
             }
         }
     }
