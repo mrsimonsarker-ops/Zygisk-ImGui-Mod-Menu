@@ -2,14 +2,6 @@
 #define OBFUSCATE_H
 #pragma once
 
-/* --------------------------------- ABOUT -------------------------------------
-Original Author: Adam Yaxley
-Website: https://github.com/adamyaxley
-License: See end of file
-Obfuscate
-Guaranteed compile-time string literal obfuscation library for C++14
------------------------------------------------------------------------------ */
-
 #include <cstddef>
 #include <string>
 
@@ -22,7 +14,6 @@ namespace ay
     using size_type = unsigned long long;
     using key_type = unsigned long long;
 
-    // Generate a psuedo-random key that spans all 8 bytes
     constexpr key_type generate_key(key_type seed)
     {
         key_type key = seed;
@@ -35,7 +26,6 @@ namespace ay
         return key;
     }
 
-    // Obfuscates or deobfuscates data with key
     constexpr void cipher(char* data, size_type size, key_type key)
     {
         for (size_type i = 0; i < size; i++)
@@ -44,7 +34,6 @@ namespace ay
         }
     }
 
-    // Obfuscates a string at compile time
     template <size_type N, key_type KEY>
     class obfuscator
     {
@@ -66,7 +55,6 @@ namespace ay
         char m_data[N]{};
     };
 
-    // Handles decryption and re-encryption of an encrypted string at runtime
     template <size_type N, key_type KEY>
     class obfuscated_data
     {
@@ -143,4 +131,4 @@ namespace ay
 		return obfuscated_data; \
 	}()
 
-#endif // OBFUSCATE_H
+#endif
