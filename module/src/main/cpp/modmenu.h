@@ -25,27 +25,14 @@ typedef void* (*il2cpp_assembly_get_image_t)(void* assembly);
 typedef void* (*il2cpp_class_from_name_t)(void* image, const char* namespaze, const char* name);
 typedef void* (*il2cpp_class_get_field_from_name_t)(void* klass, const char* name);
 typedef void (*il2cpp_field_static_get_value_t)(void* field, void* value);
-typedef void* (*il2cpp_class_get_method_from_name_t)(void* klass, const char* name, int argsCount);
 
 // ফাংশন পয়েন্টার
-il2cpp_domain_get_t il2cpp_domain_get;
-il2cpp_domain_get_assemblies_t il2cpp_domain_get_assemblies;
-il2cpp_assembly_get_image_t il2cpp_assembly_get_image;
-il2cpp_class_from_name_t il2cpp_class_from_name;
-il2cpp_class_get_field_from_name_t il2cpp_class_get_field_from_name;
-il2cpp_field_static_get_value_t il2cpp_field_static_get_value;
-
-// আপনার dump.cs থেকে অফসেট
-#define OFFSET_SALLENTITIES 0x8
-
-// PlayerData অফসেট
-#define OFFSET_NICKNAME 0x38
-#define OFFSET_ISDEAD 0x6C
-#define OFFSET_LASTPOSITION 0xDC
-#define OFFSET_PLAYER_PTR 0x100
-#define OFFSET_TEAM_ID 0x35
-#define OFFSET_LTRANSFORM_POSITION 0x64
-#define OFFSET_LTRANSFORM 0x60
+il2cpp_domain_get_t il2cpp_domain_get = nullptr;
+il2cpp_domain_get_assemblies_t il2cpp_domain_get_assemblies = nullptr;
+il2cpp_assembly_get_image_t il2cpp_assembly_get_image = nullptr;
+il2cpp_class_from_name_t il2cpp_class_from_name = nullptr;
+il2cpp_class_get_field_from_name_t il2cpp_class_get_field_from_name = nullptr;
+il2cpp_field_static_get_value_t il2cpp_field_static_get_value = nullptr;
 
 // মেমরি রিড হেল্পার
 template<typename T>
@@ -76,26 +63,18 @@ void UpdateEntities() {
     void** assemblies = il2cpp_domain_get_assemblies(domain, &assemblyCount);
     if (!assemblies) return;
 
-    void* image = nullptr;
     for (size_t i = 0; i < assemblyCount; i++) {
-        image = il2cpp_assembly_get_image(assemblies[i]);
+        void* image = il2cpp_assembly_get_image(assemblies[i]);
         void* baseGameClass = il2cpp_class_from_name(image, OBFUSCATE("GCommon"), OBFUSCATE("BaseGame"));
         if (baseGameClass) {
-            // আমরা BaseGame ক্লাস পেয়েছি
             void* sAllEntitiesField = il2cpp_class_get_field_from_name(baseGameClass, OBFUSCATE("sAllEntities"));
             if (sAllEntitiesField) {
                 void* allEntitiesDict = nullptr;
                 il2cpp_field_static_get_value(sAllEntitiesField, &allEntitiesDict);
                 
                 if (allEntitiesDict) {
-                    // এখানে Dictionary থেকে প্লেয়ার লুপ করার কোড থাকবে
-                    // Unity Dictionary Structure: _entries (0x18), _count (0x20)
                     int count = ReadMemory<int>((uintptr_t)allEntitiesDict + 0x20);
-                    uintptr_t entries = ReadMemory<uintptr_t>((uintptr_t)allEntitiesDict + 0x18);
-                    
-                    g_EnemyCount = count; // আপাতত কাউন্ট দেখাচ্ছি
-                    
-                    // এখানে ইমগুই দিয়ে লাইন আঁকার লজিক বসবে
+                    g_EnemyCount = count;
                 }
             }
             break;
@@ -118,6 +97,26 @@ void drawMenu() {
     }
 }
 
+// গেম ডিটেকশন ফাংশন
+int isGame(JNIEnv *env, jstring appDataDir) {
+    if (!appDataDir) return 0;
+    const char *app_data_dir = env->GetStringUTFChars(appDataDir, nullptr);
+    static char package_name[256];
+    if (sscanf(app_data_dir, OBFUSCATE("/data/%*[^/]/%d/%s"), 0, package_name) != 2) {
+        if (sscanf(app_data_dir, OBFUSCATE("/data/%*[^/]/%s"), package_name) != 1) {
+            package_name[0] = '\0';
+            env->ReleaseStringUTFChars(appDataDir, app_data_dir);
+            return 0;
+        }
+    }
+    if (strcmp(package_name, OBFUSCATE("com.dts.freefiremax")) == 0) {
+        env->ReleaseStringUTFChars(appDataDir, app_data_dir);
+        return 1;
+    }
+    env->ReleaseStringUTFChars(appDataDir, app_data_dir);
+    return 0;
+}
+
 // হ্যাক থ্রেড
 void* hack_thread(void *) {
     LOGI(OBFUSCATE("hack thread: %d"), gettid());
@@ -134,4 +133,4 @@ void* hack_thread(void *) {
     return nullptr;
 }
 
-#endif // MODMENU_H
+#endif
