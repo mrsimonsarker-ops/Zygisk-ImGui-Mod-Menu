@@ -13,12 +13,10 @@
 
 #define targetLibName OBFUSCATE("libil2cpp.so")
 
-// গ্লোবাল ভেরিয়েবল
 static bool g_ShowESP = false;
 static bool g_ShowEnemyCount = false;
 static int g_EnemyCount = 0;
 
-// IL2CPP API টাইপ ডেফিনিশন
 typedef void* (*il2cpp_domain_get_t)();
 typedef void** (*il2cpp_domain_get_assemblies_t)(void* domain, size_t* size);
 typedef void* (*il2cpp_assembly_get_image_t)(void* assembly);
@@ -26,7 +24,6 @@ typedef void* (*il2cpp_class_from_name_t)(void* image, const char* namespaze, co
 typedef void* (*il2cpp_class_get_field_from_name_t)(void* klass, const char* name);
 typedef void (*il2cpp_field_static_get_value_t)(void* field, void* value);
 
-// ফাংশন পয়েন্টার
 il2cpp_domain_get_t il2cpp_domain_get = nullptr;
 il2cpp_domain_get_assemblies_t il2cpp_domain_get_assemblies = nullptr;
 il2cpp_assembly_get_image_t il2cpp_assembly_get_image = nullptr;
@@ -34,23 +31,19 @@ il2cpp_class_from_name_t il2cpp_class_from_name = nullptr;
 il2cpp_class_get_field_from_name_t il2cpp_class_get_field_from_name = nullptr;
 il2cpp_field_static_get_value_t il2cpp_field_static_get_value = nullptr;
 
-// Camera ফাংশন পয়েন্টার
 void* (*Camera_get_main)() = nullptr;
 void (*WorldToScreenPoint)(void* camera, void* pos, void* out) = nullptr;
 
-// PlayerData অফসেট (আপনার dump.cs থেকে)
 #define OFFSET_ISDEAD 0x6C
 #define OFFSET_LASTPOSITION 0xDC
 #define OFFSET_TEAM_ID 0x35
 
-// মেমরি রিড হেল্পার
 template<typename T>
 T ReadMemory(uintptr_t address) {
     if (address == 0) return T{};
     return *(T*)address;
 }
 
-// IL2CPP API লোড
 void InitIL2CPP() {
     void* handle = dlopen(targetLibName, RTLD_LAZY);
     if (!handle) return;
@@ -62,7 +55,6 @@ void InitIL2CPP() {
     il2cpp_class_get_field_from_name = (il2cpp_class_get_field_from_name_t)dlsym(handle, "il2cpp_class_get_field_from_name");
     il2cpp_field_static_get_value = (il2cpp_field_static_get_value_t)dlsym(handle, "il2cpp_field_static_get_value");
     
-    // Camera ফাংশন সেটআপ (RVA ব্যবহার করে)
     uintptr_t baseAddr = getBaseAddress(targetLibName);
     if (baseAddr) {
         Camera_get_main = (void*(*)())(baseAddr + 0xa0ce614);
@@ -70,7 +62,6 @@ void InitIL2CPP() {
     }
 }
 
-// ESP লাইন আঁকা
 void DrawESP() {
     if (!il2cpp_domain_get || !Camera_get_main) return;
 
@@ -79,8 +70,6 @@ void DrawESP() {
 
     ImDrawList* drawList = ImGui::GetForegroundDrawList();
     ImVec2 screenSize = ImGui::GetIO().DisplaySize;
-    
-    // লাইনের শুরুর বিন্দু: স্ক্রিনের একদম উপরের মাঝখানে (X=মাঝখান, Y=0)
     ImVec2 startPos = ImVec2(screenSize.x / 2.0f, 0.0f);
 
     void* domain = il2cpp_domain_get();
@@ -98,7 +87,6 @@ void DrawESP() {
                 il2cpp_field_static_get_value(sAllEntitiesField, &allEntitiesDict);
                 
                 if (allEntitiesDict) {
-                    // ডিকশনারি থেকে শত্রু লুপ
                     int count = ReadMemory<int>((uintptr_t)allEntitiesDict + 0x20);
                     uintptr_t entries = ReadMemory<uintptr_t>((uintptr_t)allEntitiesDict + 0x18);
                     
@@ -115,24 +103,21 @@ void DrawESP() {
 
                         g_EnemyCount++;
 
-                        // শত্রুর পজিশন বের করা
                         float enemyPos[3];
                         memcpy(enemyPos, (void*)((uintptr_t)playerData + OFFSET_LASTPOSITION), sizeof(enemyPos));
 
-                        // WorldToScreenPoint কল
                         float screenPos[3];
                         WorldToScreenPoint(camera, enemyPos, screenPos);
 
-                        if (screenPos[2] > 0) { // ক্যামেরার সামনে থাকলে
+                        if (screenPos[2] > 0) {
                             float screenX = screenPos[0];
-                            float screenY = screenSize.y - screenPos[1]; // Y অক্ষ সমন্বয়
+                            float screenY = screenSize.y - screenPos[1];
 
-                            // সাদা রঙের লাইন আঁকা (স্ক্রিনের একদম উপরের মাঝখান থেকে শত্রুর দিকে)
                             drawList->AddLine(
                                 startPos,
                                 ImVec2(screenX, screenY),
-                                IM_COL32(255, 255, 255, 255), // একদম সাদা রঙ
-                                2.0f // লাইনের পুরুত্ব
+                                IM_COL32(255, 255, 255, 255),
+                                2.0f
                             );
                         }
                     }
@@ -143,7 +128,6 @@ void DrawESP() {
     }
 }
 
-// মেনু ড্র
 void drawMenu() {
     ImGui::Begin(OBFUSCATE("Sable ESP"), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
     ImGui::Checkbox(OBFUSCATE("ESP Lines"), &g_ShowESP);
@@ -158,7 +142,6 @@ void drawMenu() {
     }
 }
 
-// গেম ডিটেকশন
 int isGame(JNIEnv *env, jstring appDataDir) {
     if (!appDataDir) return 0;
     const char *app_data_dir = env->GetStringUTFChars(appDataDir, nullptr);
@@ -178,19 +161,18 @@ int isGame(JNIEnv *env, jstring appDataDir) {
     return 0;
 }
 
-// হ্যাক থ্রেড
 void* hack_thread(void *) {
-    LOGI(OBFUSCATE("hack thread: %d"), gettid());
+    LOGI("hack thread started");
     initModMenu((void *)drawMenu);
 
     do {
-        LOGI(OBFUSCATE("Trying to find lib... PID: %d"), getpid());
+        LOGI("Trying to find lib...");
         sleep(1);
     } while (!isLibraryLoaded(targetLibName));
 
     InitIL2CPP();
 
-    LOGI("Done"));
+    LOGI("Done");
     return nullptr;
 }
 
