@@ -17,7 +17,8 @@ add_library(zygiskmodmenu SHARED
 target_include_directories(zygiskmodmenu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/Includes
-    ${CMAKE_CURRENT_SOURCE_DIR}/ImGui/..
+    ${CMAKE_CURRENT_SOURCE_DIR}/ImGui
+    ${CMAKE_CURRENT_SOURCE_DIR}/ImGui/backends
 )
 
 target_link_libraries(zygiskmodmenu
