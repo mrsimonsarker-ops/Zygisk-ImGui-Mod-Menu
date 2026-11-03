@@ -1,31 +1,41 @@
-//
-// Created by Reveny on 2023/1/13.
-//
-#define targetLibName OBFUSCATE("libil2cpp.so")
+#ifndef MODMENU_H
+#define MODMENU_H
 
 #include <jni.h>
-#include <sys/system_properties.h>
-#include <vector>
+#include <dlfcn.h>
+#include <cstring>
 #include <cmath>
-
-#include "KittyMemory/MemoryPatch.h"
-#include "Includes/ESP.h"
-#include "Includes/Dobby/dobby.h"
+#include <android/log.h>
+#include "Includes/obfuscate.h"
+#include "Includes/Logger.h"
 #include "Includes/Utils.h"
 #include "Includes/ImGui.h"
 
-// আমাদের গ্লোবাল ভেরিয়েবল
-static int enable_hack;
-static char *game_data_dir = nullptr;
-static char *game_package_name = "com.dts.freefiremax";
+#define targetLibName OBFUSCATE("libil2cpp.so")
 
+// গ্লোবাল ভেরিয়েবল
 static bool g_ShowESP = false;
 static bool g_ShowEnemyCount = false;
 static int g_EnemyCount = 0;
 
-// আপনার dump.cs থেকে পাওয়া অফসেটসমূহ
-#define OFFSET_GAMEENGINE_INSTANCE 0x0
-#define OFFSET_CURRENTGAME 0x20
+// IL2CPP API টাইপ ডেফিনিশন
+typedef void* (*il2cpp_domain_get_t)();
+typedef void** (*il2cpp_domain_get_assemblies_t)(void* domain, size_t* size);
+typedef void* (*il2cpp_assembly_get_image_t)(void* assembly);
+typedef void* (*il2cpp_class_from_name_t)(void* image, const char* namespaze, const char* name);
+typedef void* (*il2cpp_class_get_field_from_name_t)(void* klass, const char* name);
+typedef void (*il2cpp_field_static_get_value_t)(void* field, void* value);
+typedef void* (*il2cpp_class_get_method_from_name_t)(void* klass, const char* name, int argsCount);
+
+// ফাংশন পয়েন্টার
+il2cpp_domain_get_t il2cpp_domain_get;
+il2cpp_domain_get_assemblies_t il2cpp_domain_get_assemblies;
+il2cpp_assembly_get_image_t il2cpp_assembly_get_image;
+il2cpp_class_from_name_t il2cpp_class_from_name;
+il2cpp_class_get_field_from_name_t il2cpp_class_get_field_from_name;
+il2cpp_field_static_get_value_t il2cpp_field_static_get_value;
+
+// আপনার dump.cs থেকে অফসেট
 #define OFFSET_SALLENTITIES 0x8
 
 // PlayerData অফসেট
@@ -34,90 +44,94 @@ static int g_EnemyCount = 0;
 #define OFFSET_LASTPOSITION 0xDC
 #define OFFSET_PLAYER_PTR 0x100
 #define OFFSET_TEAM_ID 0x35
-
-// Player Class LTransform
-#define OFFSET_LTRANSFORM 0x60
 #define OFFSET_LTRANSFORM_POSITION 0x64
+#define OFFSET_LTRANSFORM 0x60
 
-// Unity Camera ফাংশনের জন্য
-typedef void* (*Camera_get_main_t)();
-typedef void (*WorldToScreenPoint_t)(void* camera, void* pos, void* out);
-
-Camera_get_main_t Camera_get_main;
-WorldToScreenPoint_t WorldToScreenPoint;
-
-// মেমরি রিড টেমপ্লেট
+// মেমরি রিড হেল্পার
 template<typename T>
 T ReadMemory(uintptr_t address) {
     if (address == 0) return T{};
     return *(T*)address;
 }
 
-int isGame(JNIEnv *env, jstring appDataDir) {
-    if (!appDataDir) return 0;
-    const char *app_data_dir = env->GetStringUTFChars(appDataDir, nullptr);
-    static char package_name[256];
-    if (sscanf(app_data_dir, OBFUSCATE("/data/%*[^/]/%d/%s"), 0, package_name) != 2) {
-        if (sscanf(app_data_dir, OBFUSCATE("/data/%*[^/]/%s"), package_name) != 1) {
-            package_name[0] = '\0';
-            env->ReleaseStringUTFChars(appDataDir, app_data_dir);
-            return 0;
+// IL2CPP API লোড করার ফাংশন
+void InitIL2CPP() {
+    void* handle = dlopen(targetLibName, RTLD_LAZY);
+    if (!handle) return;
+
+    il2cpp_domain_get = (il2cpp_domain_get_t)dlsym(handle, "il2cpp_domain_get");
+    il2cpp_domain_get_assemblies = (il2cpp_domain_get_assemblies_t)dlsym(handle, "il2cpp_domain_get_assemblies");
+    il2cpp_assembly_get_image = (il2cpp_assembly_get_image_t)dlsym(handle, "il2cpp_assembly_get_image");
+    il2cpp_class_from_name = (il2cpp_class_from_name_t)dlsym(handle, "il2cpp_class_from_name");
+    il2cpp_class_get_field_from_name = (il2cpp_class_get_field_from_name_t)dlsym(handle, "il2cpp_class_get_field_from_name");
+    il2cpp_field_static_get_value = (il2cpp_field_static_get_value_t)dlsym(handle, "il2cpp_field_static_get_value");
+}
+
+// শত্রুদের তালিকা বের করার ফাংশন
+void UpdateEntities() {
+    if (!il2cpp_domain_get) return;
+
+    void* domain = il2cpp_domain_get();
+    size_t assemblyCount = 0;
+    void** assemblies = il2cpp_domain_get_assemblies(domain, &assemblyCount);
+    if (!assemblies) return;
+
+    void* image = nullptr;
+    for (size_t i = 0; i < assemblyCount; i++) {
+        image = il2cpp_assembly_get_image(assemblies[i]);
+        void* baseGameClass = il2cpp_class_from_name(image, OBFUSCATE("GCommon"), OBFUSCATE("BaseGame"));
+        if (baseGameClass) {
+            // আমরা BaseGame ক্লাস পেয়েছি
+            void* sAllEntitiesField = il2cpp_class_get_field_from_name(baseGameClass, OBFUSCATE("sAllEntities"));
+            if (sAllEntitiesField) {
+                void* allEntitiesDict = nullptr;
+                il2cpp_field_static_get_value(sAllEntitiesField, &allEntitiesDict);
+                
+                if (allEntitiesDict) {
+                    // এখানে Dictionary থেকে প্লেয়ার লুপ করার কোড থাকবে
+                    // Unity Dictionary Structure: _entries (0x18), _count (0x20)
+                    int count = ReadMemory<int>((uintptr_t)allEntitiesDict + 0x20);
+                    uintptr_t entries = ReadMemory<uintptr_t>((uintptr_t)allEntitiesDict + 0x18);
+                    
+                    g_EnemyCount = count; // আপাতত কাউন্ট দেখাচ্ছি
+                    
+                    // এখানে ইমগুই দিয়ে লাইন আঁকার লজিক বসবে
+                }
+            }
+            break;
         }
-    }
-    if (strcmp(package_name, game_package_name) == 0) {
-        game_data_dir = new char[strlen(app_data_dir) + 1];
-        strcpy(game_data_dir, app_data_dir);
-        env->ReleaseStringUTFChars(appDataDir, app_data_dir);
-        return 1;
-    } else {
-        env->ReleaseStringUTFChars(appDataDir, app_data_dir);
-        return 0;
     }
 }
 
+// মেনু ড্র করার ফাংশন
 void drawMenu() {
     ImGui::Begin(OBFUSCATE("Sable ESP"), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
-    
     ImGui::Checkbox(OBFUSCATE("ESP Lines"), &g_ShowESP);
     ImGui::Checkbox(OBFUSCATE("Enemy Count"), &g_ShowEnemyCount);
-    
     if (g_ShowEnemyCount) {
         ImGui::Text(OBFUSCATE("Enemies: %d"), g_EnemyCount);
     }
-    
     ImGui::End();
 
-    // এখানে আমরা গেমের ভেতরের শত্রুদের খুঁজবো
     if (g_ShowESP || g_ShowEnemyCount) {
-        if (!isLibraryLoaded(targetLibName)) return;
-
-        uintptr_t baseAddr = getBaseAddress(targetLibName);
-        if (!baseAddr) return;
-
-        // GameEngine.instance বের করা (এটি একটি Static Field, যা সরাসরি অ্যাড্রেস দিয়ে রিড করা যায়)
-        uintptr_t gameEngineInstance = ReadMemory<uintptr_t>(baseAddr + OFFSET_GAMEENGINE_INSTANCE); // *সতর্কতা*: 0x0 অফসেট সাধারণত সঠিক নয়, এটি একটি উদাহরণ
-        
-        // যেহেতু Static Field রিড করা কঠিন, আপাতত আমরা এই অংশটি কমেন্ট করে রাখছি।
-        // পরবর্তীতে IL2CPP API যুক্ত করে এটি ঠিক করতে হবে।
+        UpdateEntities();
     }
 }
 
-void *hack_thread(void *) {
+// হ্যাক থ্রেড
+void* hack_thread(void *) {
     LOGI(OBFUSCATE("hack thread: %d"), gettid());
     initModMenu((void *)drawMenu);
 
-    //Check if target lib is loaded
     do {
         LOGI(OBFUSCATE("Trying to find lib... PID: %d"), getpid());
         sleep(1);
     } while (!isLibraryLoaded(targetLibName));
 
-    LOGI(OBFUSCATE("%s has been loaded, 0x%lx"), (const char *) targetLibName, getBaseAddress(targetLibName));
-
-    // Camera ফাংশনগুলো রেজলভ করা (RVA ব্যবহার করে)
-    // Camera.get_main = (Camera_get_main_t)getAbsoluteAddress(targetLibName, 0xa0ce614);
-    // WorldToScreenPoint = (WorldToScreenPoint_t)getAbsoluteAddress(targetLibName, 0xa0ce298);
+    InitIL2CPP();
 
     LOGI(OBFUSCATE("Done"));
     return nullptr;
 }
+
+#endif // MODMENU_H
