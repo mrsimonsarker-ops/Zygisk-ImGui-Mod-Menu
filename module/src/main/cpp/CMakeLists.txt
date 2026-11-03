@@ -19,7 +19,6 @@ target_include_directories(zygiskmodmenu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Includes
     ${CMAKE_CURRENT_SOURCE_DIR}/ImGui
     ${CMAKE_CURRENT_SOURCE_DIR}/ImGui/backends
-    ${CMAKE_CURRENT_SOURCE_DIR}/ImGui/..
 )
 
 target_link_libraries(zygiskmodmenu
